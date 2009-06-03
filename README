@@ -1,0 +1,67 @@
+X.LET-STAR is a binding utility for Common Lisp which currently combines:
+
+a) let*
+b) destructuring-bind
+c) multiple-value-bind
+d) with-slots
+e) "projection" of slot values of structure/object to normal values,
+   avoiding slot lookup every time the slot value is used in the scope
+   of let*
+
+It's trivially extendible with DEFINE-BINDER macro, and supports adding
+of customized declarations via DEFINE-DECLARATION-PROCESSING macro. 
+
+It's designed as drop-in replacement of common-list:let* (without any changes 
+in sources needed) and as almost drop-in replacement for metabang-bind.
+
+Main motivation for writing of this library was to get rid of metabang-bind 
+in my future libraries which is non-extendible, not nicely written, 
+has unreasonable complex codebase, generates spurious NILs in bodies after bindings
+(complicates metaprogramming) and still probably contain bugs.
+Just see it's code and compare it to X.LET-STAR
+
+X.LET-START shadows common-lisp:let* (since it's completely compatible with common-lisp:let*)
+To use the X.LET-STAR library, your defpackage should roughly look as:
+
+(defpackage :your-lib
+  (:use :common-lisp :x.let-star ...)
+  (:shadowing-import-from x.let-star let*) ;; the important line
+  ...)
+
+example:
+
+(let* (((d (e . f) &key (g :xxx)) '(:sdfg (:wert :dfg :tyu) :g 100))   ;; b)
+       ((:mval h i) (rem 1234 34))                                     ;; c)
+       ((:slot a (b-first b)) (make-xxx :a 123))                       ;; d)
+       ((:slotval (b-second b) c) (make-xxx :b 3245 :c 3456)))         ;; e)
+  (values d e f g h i a b-first b-second c))
+
+==>
+
+:SDFG
+:WERT
+(:DFG :TYU)
+100
+10
+NIL
+123
+NIL
+3245
+3456
+
+expansion:
+
+(DESTRUCTURING-BIND                                           ;; b)
+      (D (E . F) &KEY (G :XXX))                               ;; b)
+    '(:SDFG (:WERT :DFG :TYU) :G 100)                         ;; b)
+  (MULTIPLE-VALUE-BIND                                        ;; c)
+        (H I)                                                 ;; c)
+      (REM 1234 34)                                           ;; c)
+    (WITH-SLOTS (A (B-FIRST B)) (MAKE-XXX :A 123)             ;; d)
+      (LET ((#:VAL1041 (MAKE-XXX :B 3245 :C 3456)))           ;; e)
+        (LET ((B-SECOND (SLOT-VALUE #:VAL1041 'B)))           ;; e)
+          (LET ((C (SLOT-VALUE #:VAL1041 'C)))                ;; e)
+            (VALUES D E F G H I A B-FIRST B-SECOND C)))))))   
+
+More binders will be added in future as the need arises. 
+
