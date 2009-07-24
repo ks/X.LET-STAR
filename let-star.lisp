@@ -39,7 +39,24 @@
         `(progn
            (pushnew ',spec *binder-specs*)
            (defmethod expand-binding ((,spec-sym (eql ,spec)) ,var ,val ,decls ,body)
-             ,@binder-body))))))
+             ,@binder-body)))))
+
+  (defun process-lambda-list-with-ignore-markers (lambda-list declarations ignore-sym)
+    (let ((result-declarations '())
+          (ignore-sym (symbol-name ignore-sym)))
+      (flet ((store-decl (decls)
+               (setf result-declarations (nconc result-declarations decls))))
+        (values (map-lambda-list
+                 (lambda (x)
+                   (cond ((string= (symbol-name x) ignore-sym)
+                          (let ((ignore-var (gensym "IGNORE-")))
+                            (store-decl `((ignore ,ignore-var)))
+                            ignore-var))
+                         (t
+                          (store-decl (use-declaration x declarations))
+                          x)))
+                 lambda-list)
+                result-declarations)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -54,12 +71,12 @@
        ,@body)))
 
 (define-binder (nil (var list) val decls body)
-  (let ((decl (mapcan (lambda (x) (use-declaration x decls))
-                      (lambda-list-vars var))))
-    `(destructuring-bind ,var ,val
+  (multiple-value-bind (vars decl)
+      (process-lambda-list-with-ignore-markers var decls '_)
+    `(destructuring-bind ,vars ,val
        ,@(when decl `((declare ,@decl)))
        ,@body)))
-
+  
 (define-binder (nil var val decls body)
   (let ((decl (use-declaration var decls)))
     `(let ((,var ,val))
@@ -67,9 +84,9 @@
        ,@body)))
 
 (define-binder (:mval (var list) val decls body)
-  (let ((decl (mapcan (lambda (x) (use-declaration x decls))
-                      (lambda-list-vars var))))
-    `(multiple-value-bind ,var ,val
+  (multiple-value-bind (vars decl)
+      (process-lambda-list-with-ignore-markers var decls '_)
+    `(multiple-value-bind ,vars ,val
        ,@(when decl `((declare ,@decl)))
        ,@body)))
 

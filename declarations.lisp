@@ -17,27 +17,41 @@
          (defmethod process-declaration ((,spec-sym (eql ',spec)) ,form)
            ,@body)))))
 
-(defparameter *lambda-list-markers* '(&key &body &rest &args &optional))
+(defparameter *lambda-list-markers* '(&key &body &rest &aux &optional))
+(defparameter *lambda-list-markers-with-initializer* '(&optional &key &aux))
+
+(defun map-lambda-list (fn list)
+  (let ((nest-deeper t)
+        (marker nil))
+    (labels ((do-elem (x)
+               (if (and nest-deeper (consp x))
+                   (map-lambda-list fn x)
+                   (leaf x)))
+             (leaf (x)
+               (cond ((member x *lambda-list-markers*)
+                      (setf nest-deeper nil
+                            marker x)
+                      x)
+                     ((consp x)
+                      (if (member marker *lambda-list-markers-with-initializer*)
+                          (cons (funcall fn (car x)) (cdr x))
+                          (error "~A after ~A in lambda-list" x marker)))
+                     ((atom x)
+                      (funcall fn x)))))
+      (let ((before-list (butlast list))
+            (last-cons (last list)))
+        (let ((last-elem (cdr last-cons)))
+          (if (null last-elem)
+              (mapcar #'do-elem list)
+              (append (mapcar #'do-elem before-list)
+                      (cons (do-elem (car last-cons))
+                            (do-elem last-elem)))))))))
 
 (defun lambda-list-vars (list)
-  (let ((optional-or-key nil))
-    (mapcan (lambda (x)
-              (cond ((null x) nil)
-                    ((atom x) (list x))
-                    (t (lambda-list-vars x))))
-            (mapcar (lambda (x)
-                      (if (or (eq x '&optional) (eq x '&key))
-                          (prog1 nil (setf optional-or-key t))
-                          (unless (member x *lambda-list-markers*)
-                            (if optional-or-key
-                                (prog1 (if (consp x) (car x) x)
-                                  (setf optional-or-key nil))
-                                x))))
-                    (let ((last (last list)))
-                      (if (cdr last)
-                          (nconc (butlast list) (list (car last) (cdr last)))
-                          list))))))
-
+  (let ((result '()))
+    (map-lambda-list (lambda (x) (push x result)) list)
+    (nreverse result)))
+  
 (defun strip-declarations (body &optional decls)
   (if (and (consp (car body))
            (eq (caar body) 'declare))
@@ -120,6 +134,11 @@
 
 (define-declaration-processing (notinline form)
   (skip-declaration 'notinline form))
+
+
+
+                         
+  
 
 
 
