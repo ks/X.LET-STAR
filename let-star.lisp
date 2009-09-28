@@ -117,3 +117,11 @@
       `(let ((,val-sym ,val))
          ,(rec var)))))
 
+(define-binder (:all (var list) val decls body)
+  (let ((decl (mapcan (lambda (x) (use-declaration x decls)) var))
+        (val-sym (gensym "VAL")))
+    `(let ((,val-sym ,val))
+       (let (,@(mapcar (lambda (var) `(,var ,val-sym)) var))
+         ,@(when decl `((declare ,@decl)))
+         ,@body))))
+    
