@@ -7,6 +7,7 @@ d) with-slots
 e) "projection" of slot values of structure/object to normal values,
    avoiding slot lookup every time the slot value is used in the scope
    of let*
+f) binding of a group of variables to one initialization value
 
 It's trivially extendible with DEFINE-BINDER macro, and supports adding
 of customized declarations via DEFINE-DECLARATION-PROCESSING macro. 
@@ -35,8 +36,9 @@ example:
 (let* (((_ (e . _) &key (g :xxx)) '(:sdfg (:wert :dfg :tyu) :g 100))      ;; b
        ((:mval h _) (rem 1234 34))                                        ;; c
        ((:slot a (b-first b)) (make-xxx :a 123))                          ;; d
-       ((:slotval (b-second b) c) (make-xxx :b 3245 :c 3456)))            ;; e
-   (values e g h a b-first b-second c))
+       ((:slotval (b-second b) c) (make-xxx :b 3245 :c 3456))             ;; e
+       ((:all x y z) :init))                                              ;; f
+   (values e g h a b-first b-second c x y z))
 
 ==>
 
@@ -47,22 +49,27 @@ example:
 NIL
 3245
 3456
+:INIT
+:INIT
+:INIT
 
 expansion:
 
-(DESTRUCTURING-BIND                                         ;; b
-      (#:IGNORE-1021 (E . #:IGNORE-1022) &KEY (G :XXX))     ;; b
-    '(:SDFG (:WERT :DFG :TYU) :G 100)                       ;; b
-  (DECLARE (IGNORE #:IGNORE-1021) (IGNORE #:IGNORE-1022))   ;; b
-  (MULTIPLE-VALUE-BIND                                      ;; c
-        (H #:IGNORE-1020)                                   ;; c
-      (REM 1234 34)                                         ;; c
-    (DECLARE (IGNORE #:IGNORE-1020))                        ;; c
-    (WITH-SLOTS (A (B-FIRST B)) (MAKE-XXX :A 123)           ;; d
-      (LET ((#:VAL1019 (MAKE-XXX :B 3245 :C 3456)))         ;; e
-        (LET ((B-SECOND (SLOT-VALUE #:VAL1019 'B)))         ;; e
-          (LET ((C (SLOT-VALUE #:VAL1019 'C)))              ;; e
-            (VALUES E G H A B-FIRST B-SECOND C)))))))
-
+(DESTRUCTURING-BIND                                            ;; b
+      (#:IGNORE-1021 (E . #:IGNORE-1022) &KEY (G :XXX))        ;; b
+    '(:SDFG (:WERT :DFG :TYU) :G 100)                          ;; b
+  (DECLARE (IGNORE #:IGNORE-1021) (IGNORE #:IGNORE-1022))      ;; b
+  (MULTIPLE-VALUE-BIND                                         ;; c
+        (H #:IGNORE-1020)                                      ;; c
+      (REM 1234 34)                                            ;; c
+    (DECLARE (IGNORE #:IGNORE-1020))                           ;; c
+    (WITH-SLOTS (A (B-FIRST B)) (MAKE-XXX :A 123)              ;; d
+      (LET ((#:VAL1019 (MAKE-XXX :B 3245 :C 3456)))            ;; e
+        (LET ((B-SECOND (SLOT-VALUE #:VAL1019 'B)))            ;; e
+          (LET ((C (SLOT-VALUE #:VAL1019 'C)))                 ;; e
+            (LET ((#:VAL1139 :INIT))                           ;; f
+              (LET ((X #:VAL1139) (Y #:VAL1139) (Z #:VAL1139)) ;; f 
+                (VALUES E G H A B-FIRST B-SECOND C X Y Z)))))))))
+    
 More binders will be added in future as the need arises. 
 
