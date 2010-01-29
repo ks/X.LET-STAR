@@ -58,7 +58,33 @@
                  lambda-list)
                 result-declarations)))))
 
+(defun ignore-varname-p (symbol)
+  (if (and (null (symbol-package symbol))
+           (string= (subseq (symbol-name symbol) 0 6)
+                    "IGNORE"))
+      t
+      nil))
+
+(defun ignore-symbol-p (symbol &optional (ignore-sym '_))
+  (and (symbolp symbol)
+       (string= (symbol-name symbol)
+                (symbol-name ignore-sym))))
+
+(defun valid-varname-p (symbol)
+  (and (symbolp symbol) (not (keywordp symbol))))
+
+(defmacro when-let ((var test) &body body)
+  `(let ((,var ,test))
+     (when ,var
+       ,@body)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-binder (nil var val decls body)
+  (let ((decl (use-declaration var decls)))
+    `(let ((,var ,val))
+       ,@(when decl `((declare ,@decl)))
+       ,@body)))
 
 (define-binder (nil (var (eql nil)) (val (eql nil)) decls body)
   `(let ()
