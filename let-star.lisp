@@ -102,12 +102,58 @@
     `(destructuring-bind ,vars ,val
        ,@(when decl `((declare ,@decl)))
        ,@body)))
-  
-(define-binder (nil var val decls body)
-  (let ((decl (use-declaration var decls)))
-    `(let ((,var ,val))
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
+
+(define-binder (nil (var vector) val decls body)
+  (cl:let* ((length (length var))
+            (rest-idx (position '&rest var))
+            (val-name (gensym))
+            (rest-name (if rest-idx
+                           (cond ((eql rest-idx (- length 2))
+                                  (let ((name (aref var (1- length))))
+                                    (unless (ignore-symbol-p name)
+                                      (if (valid-varname-p name)
+                                          name
+                                          (error "invalid variable name: ~A" name)))))
+                                 ((eql rest-idx (1- length)) nil)
+                                 (t (error "misplaced &rest in ~A" var)))
+                           nil))
+            (body (if (and rest-idx rest-name)
+                      `((let ((,rest-name
+                               (make-array (- (length ,val-name) ,rest-idx)
+                                           :displaced-to ,val-name
+                                           :displaced-index-offset ,rest-idx)))
+                          ,@(when-let (decl (use-declaration rest-name decls))
+                                      `((declare ,@decl)))
+                          ,@body))
+                      body)))
+    `(let ((,val-name ,val))
+       ,@(unless rest-idx
+                 `((assert (eql (length ,val-name) ,length) nil
+                           "expected vector of length ~A" ,length)))
+       ,@(reduce (lambda (binding body)
+                   (destructuring-bind (var-name . idx) binding
+                     (cond ((ignore-symbol-p var-name)
+                            body)
+                           ((valid-varname-p var-name)
+                            `((let ((,var-name (aref ,val-name ,idx)))
+                                ,@(when-let (decl (use-declaration var-name decls))
+                                            `((declare ,@decl)))
+                                ,@body)))
+                           (t
+                            (let ((tmp-var (gensym (format nil "ARRAY-NESTED-VAL-~A" idx))))
+                              (multiple-value-bind (spec var)
+                                  (parse-binding `(,var-name ,tmp-var))
+                                `((let ((,tmp-var (aref ,val-name ,idx)))
+                                    ,(expand-binding spec
+                                                     var
+                                                     tmp-var
+                                                     decls
+                                                     body)))))))))
+                 (loop :for idx :from 0 :below (or rest-idx length)
+                    :for var-name :across var
+                    :collect (cons var-name idx))
+                 :from-end t
+                 :initial-value body))))
 
 (define-binder (:mval (var list) val decls body)
   (multiple-value-bind (vars decl)
