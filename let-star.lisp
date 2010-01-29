@@ -5,41 +5,41 @@
   (defparameter *binder-specs* '())
   (defgeneric expand-binding (spec var val decls body))
   
-  (flet ((parse-binding (form)
-           (if (atom form)
-               (values nil form nil nil)
-               (ecase (length form)
-                 (0 (values nil nil nil))
-                 (1 (values nil (first form) nil))
-                 (2 (destructuring-bind (var val) form
-                      (if (consp var)
-                          (if (member (car var) *binder-specs*)
-                              (values (car var) (cdr var) val)
-                              (values nil var val))
-                          (values nil var val))))))))
+  (defun parse-binding (form)
+    (if (atom form)
+        (values nil form nil nil)
+        (ecase (length form)
+          (0 (values nil nil nil))
+          (1 (values nil (first form) nil))
+          (2 (destructuring-bind (var val) form
+               (if (consp var)
+                   (if (member (car var) *binder-specs*)
+                       (values (car var) (cdr var) val)
+                       (values nil var val))
+                   (values nil var val)))))))
     
-    (defmacro let* ((&rest forms) &body body)
-      (multiple-value-bind (body variable-decls)
-          (process-declarations body)
-        (labels ((rec (forms)
-                   (destructuring-bind (form . forms) forms
-                     (multiple-value-bind (spec var val)
-                         (parse-binding form)
-                       (expand-binding spec
-                                       var
-                                       val
-                                       variable-decls
-                                       (if forms
-                                           (list (rec forms))
-                                           body))))))
-          (rec forms))))
+  (defmacro let* ((&rest forms) &body body)
+    (multiple-value-bind (body variable-decls)
+        (process-declarations body)
+      (labels ((rec (forms)
+                 (destructuring-bind (form . forms) forms
+                   (multiple-value-bind (spec var val)
+                       (parse-binding form)
+                     (expand-binding spec
+                                     var
+                                     val
+                                     variable-decls
+                                     (if forms
+                                         (list (rec forms))
+                                         body))))))
+        (rec forms))))
 
-    (defmacro define-binder ((spec var val decls body) &body binder-body)
-      (let ((spec-sym (gensym "SPEC")))
-        `(progn
-           (pushnew ',spec *binder-specs*)
-           (defmethod expand-binding ((,spec-sym (eql ,spec)) ,var ,val ,decls ,body)
-             ,@binder-body)))))
+  (defmacro define-binder ((spec var val decls body) &body binder-body)
+    (let ((spec-sym (gensym "SPEC")))
+      `(progn
+         (pushnew ',spec *binder-specs*)
+         (defmethod expand-binding ((,spec-sym (eql ,spec)) ,var ,val ,decls ,body)
+           ,@binder-body))))
 
   (defun process-lambda-list-with-ignore-markers (lambda-list declarations ignore-sym)
     (let ((result-declarations '())
