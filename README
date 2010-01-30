@@ -1,25 +1,38 @@
-X.LET-STAR is a binding utility for Common Lisp which currently combines:
+X.LET-STAR is a binding/destructuring utility for Common Lisp which currently combines:
 
-a) let*
-b) destructuring-bind with "don't care" _ variable
-c) multiple-value-bind with "don't care" _ variable
+a) let* 
+b) destructuring-bind
+c) multiple-value-bind
 d) with-slots
 e) "projection" of slot values of structure/object to normal values,
    avoiding slot lookup every time the slot value is used in the scope
    of let*
 f) binding of a group of variables to one initialization value
+g) destructuring of arrays
+h) destructuring of complex numbers 
+
+Destructuring of lists, arrays and multiple values can contain
+nested other binders, and also recognizes "don't care" variable _.
+
+A small example of nested sequences destructuring:
+
+(defstruct xxx a b)
+
+(let* (((:mval #(x
+                 (y (:complex r i) &rest rest)
+                 (:slotval a b))
+               (f g))
+        (values (vector 10 
+                        (list 20 (complex 30 40) 50 60) 
+                        (make-xxx :a 70 :b 80))
+                (list 90 100))))
+  (values x y r i rest a b f g))
 
 It's trivially extendible with DEFINE-BINDER macro, and supports adding
 of customized declarations via DEFINE-DECLARATION-PROCESSING macro. 
 
 It's designed as drop-in replacement of common-list:let* (without any changes 
 in sources needed) and as almost drop-in replacement for metabang-bind.
-
-Main motivation for writing of this library was to get rid of metabang-bind 
-in my future libraries which is non-extendible, not nicely written, 
-has unreasonable complex codebase, generates spurious NILs in bodies after bindings
-(complicates metaprogramming) and still probably contain bugs.
-Just see it's code and compare it to X.LET-STAR
 
 X.LET-START shadows common-lisp:let* (since it's completely compatible with common-lisp:let*)
 To use the X.LET-STAR library, your defpackage should roughly look as:
@@ -29,7 +42,7 @@ To use the X.LET-STAR library, your defpackage should roughly look as:
   (:shadowing-import-from x.let-star let*) ;; the important line
   ...)
 
-example:
+Example of other features:
 
 (defstruct xxx a b c)
 
