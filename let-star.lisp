@@ -55,7 +55,9 @@
                 (symbol-name ignore-sym))))
 
 (defun valid-varname-p (symbol)
-  (and (symbolp symbol) (not (keywordp symbol))))
+  (and (symbolp symbol)
+       (not (null symbol))
+       (not (keywordp symbol))))
 
 (defun extract-nested-binding-specs (vars decls)
   (let ((bindings nil))
@@ -223,3 +225,22 @@
          ,@(when decl `((declare ,@decl)))
          ,@body))))
     
+(define-binder (:complex (var list) val decls body)
+  (let ((val-sym (gensym "COMPLEX-")))
+    (let ((bindings 
+           (mapcan (lambda (var function)
+                     (unless (ignore-symbol-p var)
+                       (list `(,var (,function ,val-sym)))))
+                   (if (or (null var) (> (length var) 2))
+                       (error "expected REALPART or REALPART IMAGPART variable names, got ~A" var)
+                       var)
+                   '(realpart imagpart))))
+      `(let ((,val-sym ,val))
+         ,@(if bindings
+               `((let (,@bindings)
+                   ,@(when-let (decl (mapcan (lambda (x)
+                                               (use-declaration (car x) decls))
+                                             bindings))
+                               `((declare ,@decl)))
+                   ,@body))
+              body)))))
