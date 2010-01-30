@@ -1,32 +1,35 @@
 (in-package :x.let-star)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(defvar *declaration-specs* '())
 
-  (defvar *declaration-specs* '())
+(eval-when (:compile-toplevel :load-toplevel :execute)
 
   ;; returns: hash-table var-name -> canonic declarations
   ;;          not related body-declarations (optimize, ftype)
   (defgeneric process-declaration (spec form))
   
   (defmacro define-declaration-processing ((spec form) &body body)
-    (let ((spec-sym (gensym "SPEC")))
-      (when (member spec *declaration-specs*)
-        (error "~A declaration processing is already defined" spec))
-      `(progn
-         (push ',spec *declaration-specs*)
-         (defmethod process-declaration ((,spec-sym (eql ',spec)) ,form)
-           ,@body)))))
+    `(progn
+       (pushnew ',spec *declaration-specs*)
+       (defmethod process-declaration ((,(gensym "SPEC") (eql ',spec)) ,form)
+         ,@body))))
 
 (defparameter *lambda-list-markers* '(&key &body &rest &aux &optional))
 (defparameter *lambda-list-markers-with-initializer* '(&optional &key &aux))
 
-(defun map-lambda-list (fn list)
+(defun map-lambda-list (list leaf-fn
+                        &optional
+                        (cons-fn (lambda (x) (values t x))))
   (let ((nest-deeper t)
         (marker nil))
     (labels ((do-elem (x)
-               (if (and nest-deeper (consp x))
-                   (map-lambda-list fn x)
-                   (leaf x)))
+               (cond ((and nest-deeper (consp x))
+                      (multiple-value-setq (nest-deeper x)
+                        (funcall cons-fn x))
+                      (if nest-deeper
+                          (map-lambda-list x leaf-fn cons-fn)
+                          (leaf x)))
+                     (t (leaf x))))
              (leaf (x)
                (cond ((member x *lambda-list-markers*)
                       (setf nest-deeper nil
@@ -34,10 +37,10 @@
                       x)
                      ((consp x)
                       (if (member marker *lambda-list-markers-with-initializer*)
-                          (cons (funcall fn (car x)) (cdr x))
+                          (cons (funcall leaf-fn (car x)) (cdr x))
                           (error "~A after ~A in lambda-list" x marker)))
-                     ((atom x)
-                      (funcall fn x)))))
+                     (t
+                      (funcall leaf-fn x)))))
       (let ((before-list (butlast list))
             (last-cons (last list)))
         (let ((last-elem (cdr last-cons)))
@@ -49,7 +52,7 @@
 
 (defun lambda-list-vars (list)
   (let ((result '()))
-    (map-lambda-list (lambda (x) (push x result)) list)
+    (map-lambda-list list (lambda (x) (push x result)))
     (nreverse result)))
   
 (defun strip-declarations (body &optional decls)
