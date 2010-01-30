@@ -39,24 +39,7 @@
       `(progn
          (pushnew ',spec *binder-specs*)
          (defmethod expand-binding ((,spec-sym (eql ,spec)) ,var ,val ,decls ,body)
-           ,@binder-body))))
-
-  (defun process-lambda-list-with-ignore-markers (lambda-list declarations ignore-sym)
-    (let ((result-declarations '())
-          (ignore-sym (symbol-name ignore-sym)))
-      (flet ((store-decl (decls)
-               (setf result-declarations (nconc result-declarations decls))))
-        (values (map-lambda-list
-                 (lambda (x)
-                   (cond ((string= (symbol-name x) ignore-sym)
-                          (let ((ignore-var (gensym "IGNORE-")))
-                            (store-decl `((ignore ,ignore-var)))
-                            ignore-var))
-                         (t
-                          (store-decl (use-declaration x declarations))
-                          x)))
-                 lambda-list)
-                result-declarations)))))
+           ,@binder-body)))))
 
 (defun ignore-varname-p (symbol)
   (if (and (null (symbol-package symbol))
