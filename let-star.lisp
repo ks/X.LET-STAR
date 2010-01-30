@@ -1,8 +1,9 @@
 (in-package :x.let-star)
 
+(defvar *binder-specs* '())
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
 
-  (defparameter *binder-specs* '())
   (defgeneric expand-binding (spec var val decls body))
   
   (defun parse-binding (form)
