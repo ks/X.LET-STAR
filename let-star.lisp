@@ -57,6 +57,32 @@
 (defun valid-varname-p (symbol)
   (and (symbolp symbol) (not (keywordp symbol))))
 
+(defun extract-nested-binding-specs (vars decls)
+  (let ((bindings nil))
+    (values
+     (map-lambda-list
+      vars
+      (lambda (elem)
+        (cond ((ignore-symbol-p elem)
+               (let ((var-name (gensym "IGNORE-")))
+                 (setf (gethash var-name decls) `((ignore ,var-name)))
+                 var-name))
+              ((arrayp elem)
+               (let ((var-name (gensym "ARRAY-")))
+                 (push (cons elem var-name) bindings)
+                 var-name))
+              ((valid-varname-p elem) elem)
+              (t (error "invalid variable name: ~A" elem))))
+      (lambda (list)
+        (cond ((eql (car list) :mval)
+               (error "nested :MVAL in ~A are meaningless" vars))
+              ((member (car list) *binder-specs*)
+               (let ((var-name (gensym (format nil "~A-" (car list)))))
+                 (push (cons list var-name) bindings)
+                 (values nil var-name)))
+              (t (values t list)))))
+     bindings)))
+
 (defmacro when-let ((var test) &body body)
   `(let ((,var ,test))
      (when ,var
@@ -65,10 +91,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-binder (nil var val decls body)
-  (let ((decl (use-declaration var decls)))
-    `(let ((,var ,val))
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
+  (when (ignore-symbol-p var)
+    (setf var (gensym "IGNORE-")))
+  `(let ((,var ,val))
+     ,@(if (ignore-varname-p var)
+           `((declare (ignore ,var)))
+           (when-let (decl (use-declaration var decls))
+             `((declare ,@decl))))
+     ,@body))
 
 (define-binder (nil (var (eql nil)) (val (eql nil)) decls body)
   `(let ()
@@ -77,13 +107,6 @@
 (define-binder (nil var (val (eql nil)) decls body)
   (let ((decl (use-declaration var decls)))
     `(let (,var)
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
-
-(define-binder (nil (var list) val decls body)
-  (multiple-value-bind (vars decl)
-      (process-lambda-list-with-ignore-markers var decls '_)
-    `(destructuring-bind ,vars ,val
        ,@(when decl `((declare ,@decl)))
        ,@body)))
 
@@ -139,12 +162,31 @@
                  :from-end t
                  :initial-value body))))
 
-(define-binder (:mval (var list) val decls body)
-  (multiple-value-bind (vars decl)
-      (process-lambda-list-with-ignore-markers var decls '_)
-    `(multiple-value-bind ,vars ,val
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
+(flet ((expand-bindings-form (bindings body decls)
+         (reduce (lambda (binding body)
+                   (destructuring-bind (var-form . val) binding
+                     (multiple-value-bind (spec var)
+                         (parse-binding `(,var-form ,val))
+                       (list (expand-binding spec var val decls body)))))
+                 bindings
+                 :from-end t
+                 :initial-value body)))
+        
+  (define-binder (nil (var list) val decls body)
+    (multiple-value-bind (vars bindings)
+        (extract-nested-binding-specs var decls)
+      `(destructuring-bind ,vars ,val
+         ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls)) vars))
+                     `((declare ,@decl)))
+         ,@(expand-bindings-form bindings body decls))))
+
+  (define-binder (:mval (var list) val decls body)
+    (multiple-value-bind (vars bindings)
+        (extract-nested-binding-specs var decls)
+      `(multiple-value-bind ,vars ,val
+         ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls)) vars))
+                     `((declare ,@decl)))
+         ,@(expand-bindings-form bindings body decls)))))
 
 (define-binder (:slot (var list) val decls body)
   (let ((decl (mapcan (lambda (x) (use-declaration x decls))
