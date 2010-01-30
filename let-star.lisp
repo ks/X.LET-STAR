@@ -59,7 +59,7 @@
        (not (null symbol))
        (not (keywordp symbol))))
 
-(defun extract-nested-binding-specs (vars decls)
+(defun extract-nested-binding-specs (vars decls &key extract-plain-lists)
   (let ((bindings nil))
     (values
      (map-lambda-list
@@ -78,8 +78,10 @@
       (lambda (list)
         (cond ((eql (car list) :mval)
                (error "nested :MVAL in ~A are meaningless" vars))
-              ((member (car list) *binder-specs*)
-               (let ((var-name (gensym (format nil "~A-" (car list)))))
+              ((or extract-plain-lists (member (car list) *binder-specs*))
+               (let ((var-name (gensym (if extract-plain-lists
+                                           "LIST-"
+                                           (format nil "~A-" (car list))))))
                  (push (cons list var-name) bindings)
                  (values nil var-name)))
               (t (values t list)))))
@@ -184,7 +186,7 @@
 
   (define-binder (:mval (var list) val decls body)
     (multiple-value-bind (vars bindings)
-        (extract-nested-binding-specs var decls)
+        (extract-nested-binding-specs var decls :extract-plain-lists t)
       `(multiple-value-bind ,vars ,val
          ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls)) vars))
                      `((declare ,@decl)))
