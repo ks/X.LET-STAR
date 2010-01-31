@@ -180,7 +180,9 @@
     (multiple-value-bind (vars bindings)
         (extract-nested-binding-specs var decls)
       `(destructuring-bind ,vars ,val
-         ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls)) vars))
+         ,@(when-let (decl (mapcan (lambda (x)
+                                     (use-declaration x decls))
+                                   (lambda-list-vars vars)))
                      `((declare ,@decl)))
          ,@(expand-bindings-form bindings body decls))))
 
