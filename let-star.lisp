@@ -5,18 +5,17 @@
 (defmacro let* ((&rest forms) &body body)
   (multiple-value-bind (body variable-decls)
       (process-declarations body)
-    (labels ((rec (forms)
-               (destructuring-bind (form . forms) forms
-                 (multiple-value-bind (spec var val)
-                     (parse-binding form)
-                   (expand-binding spec
-                                   var
-                                   val
-                                   variable-decls
-                                   (if forms
-                                       (list (rec forms))
-                                       body))))))
-      (rec forms))))
+    (car (reduce (lambda (form body)
+                   (multiple-value-bind (spec var val)
+                       (parse-binding form)
+                     (list (expand-binding spec
+                                           var
+                                           val
+                                           variable-decls
+                                           body))))
+                 (or forms '(nil))
+                 :from-end t
+                 :initial-value body))))
 
 (defmacro define-binder ((spec var val decls body) &body binder-body)
   (let ((spec-sym (gensym "SPEC")))
