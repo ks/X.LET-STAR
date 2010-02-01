@@ -5,7 +5,8 @@
   :components ((:file "package")
                (:file "common")
                (:file "declarations")
-               (:file "let-star")))
+               (:file "let-star")
+               (:file "tests")))
 
 
 
