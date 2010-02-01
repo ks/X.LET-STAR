@@ -1,72 +1,20 @@
 (in-package :x.let-star)
 
-(defvar *declaration-specs* '())
+;; returns: hash-table var-name -> canonic declarations
+;;          not related body-declarations (optimize, ftype)
+(defgeneric process-declaration (spec form))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(defmacro define-declaration-processing ((spec form) &body body)
+  `(progn
+     (pushnew ',spec *declaration-specs*)
+     (defmethod process-declaration ((,(gensym "SPEC") (eql ',spec)) ,form)
+       ,@body)))
 
-  ;; returns: hash-table var-name -> canonic declarations
-  ;;          not related body-declarations (optimize, ftype)
-  (defgeneric process-declaration (spec form))
-  
-  (defmacro define-declaration-processing ((spec form) &body body)
-    `(progn
-       (pushnew ',spec *declaration-specs*)
-       (defmethod process-declaration ((,(gensym "SPEC") (eql ',spec)) ,form)
-         ,@body))))
-
-(defparameter *lambda-list-markers* '(&key &body &rest &aux &optional))
-(defparameter *lambda-list-markers-with-initializer* '(&optional &key &aux))
-
-(defun map-lambda-list (list leaf-fn
-                        &optional
-                        (cons-fn (lambda (x) (values t x))))
-  (let ((nest-deeper t)
-        (marker nil))
-    (labels ((do-elem (x)
-               (cond ((and nest-deeper (consp x))
-                      (multiple-value-setq (nest-deeper x)
-                        (funcall cons-fn x))
-                      (if nest-deeper
-                          (map-lambda-list x leaf-fn cons-fn)
-                          (leaf x)))
-                     (t (leaf x))))
-             (leaf (x)
-               (cond ((member x *lambda-list-markers*)
-                      (setf nest-deeper nil
-                            marker x)
-                      x)
-                     ((consp x)
-                      (if (member marker *lambda-list-markers-with-initializer*)
-                          (cons (funcall leaf-fn (car x)) (cdr x))
-                          (error "~A after ~A in lambda-list" x marker)))
-                     (t
-                      (funcall leaf-fn x)))))
-      (let ((before-list (butlast list))
-            (last-cons (last list)))
-        (let ((last-elem (cdr last-cons)))
-          (if (null last-elem)
-              (mapcar #'do-elem list)
-              (append (mapcar #'do-elem before-list)
-                      (cons (do-elem (car last-cons))
-                            (do-elem last-elem)))))))))
-
-(defun lambda-list-vars (list)
-  (let ((result '()))
-    (map-lambda-list list (lambda (x) (push x result)))
-    (nreverse result)))
-  
 (defun strip-declarations (body &optional decls)
   (if (and (consp (car body))
            (eq (caar body) 'declare))
       (strip-declarations (cdr body) (append decls (cdar body)))
       (values body decls)))
-
-(defun merge-hash-tables (main-table other-table)
-  (maphash (lambda (key val0)
-             (let ((val (gethash key main-table)))
-               (setf (gethash key main-table)
-                     (nconc val (list val0)))))
-           other-table))
 
 (defun process-declarations (body)
   (multiple-value-bind (body declarations)
