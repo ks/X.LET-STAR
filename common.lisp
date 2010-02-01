@@ -6,6 +6,11 @@
 (defparameter *lambda-list-markers* '(&key &body &rest &aux &optional))
 (defparameter *lambda-list-markers-with-initializer* '(&optional &key &aux))
 
+(defmacro when-let ((var test) &body body)
+  `(let ((,var ,test))
+     (when ,var
+       ,@body)))
+
 (defun map-lambda-list (list leaf-fn
                         &optional
                         (cons-fn (lambda (x) (values t x))))
@@ -108,11 +113,6 @@
                  (values nil var-name)))
               (t (values t list)))))
      bindings)))
-
-(defmacro when-let ((var test) &body body)
-  `(let ((,var ,test))
-     (when ,var
-       ,@body)))
 
 
 

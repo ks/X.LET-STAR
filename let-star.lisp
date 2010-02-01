@@ -42,15 +42,17 @@
      ,@body))
 
 (define-binder (nil var (val (eql nil)) decls body)
-  (let ((decl (use-declaration var decls)))
-    `(let (,var)
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
+  (if (ignore-symbol-p var)
+      `(progn ,@body)
+      `(let (,var)
+         ,@(when-let (decl (use-declaration var decls))
+                     `((declare ,@decl)))
+         ,@body)))
 
 (define-binder (nil (var vector) val decls body)
   (cl:let* ((length (length var))
             (rest-idx (position '&rest var))
-            (val-name (gensym))
+            (val-name (gensym "VAL"))
             (rest-name (if rest-idx
                            (cond ((eql rest-idx (- length 2))
                                   (let ((name (aref var (1- length))))
@@ -128,11 +130,11 @@
          ,@(expand-bindings-form bindings body decls)))))
 
 (define-binder (:slot (var list) val decls body)
-  (let ((decl (mapcan (lambda (x) (use-declaration x decls))
-                      (lambda-list-vars var))))
-    `(with-slots ,var ,val
-       ,@(when decl `((declare ,@decl)))
-       ,@body)))
+  `(with-slots ,var ,val
+     ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls))
+                               (lambda-list-vars var)))
+                 `((declare ,@decl)))
+     ,@body))
 
 (define-binder (:slotval (var list) val decls body)
   (let ((val-sym (gensym "VAL")))
@@ -145,21 +147,21 @@
                             (values (car var) (cadr var)))
                            (t
                             (error "~A is invalid, expected VAR-NAME or (VAR-NAME SLOT-NAME)" var)))
-                   (let ((decl (use-declaration var-name decls)))
-                     `(let ((,var-name (slot-value ,val-sym ',slot-name)))
-                        ,@(when decl `((declare ,@decl)))
-                        ,@(if rest
-                              (list (rec rest))
-                              body)))))))
+                   `(let ((,var-name (slot-value ,val-sym ',slot-name)))
+                      ,@(when-let (decl (use-declaration var-name decls))
+                                  `((declare ,@decl)))
+                      ,@(if rest
+                            (list (rec rest))
+                            body))))))
       `(let ((,val-sym ,val))
          ,(rec var)))))
 
 (define-binder (:all (var list) val decls body)
-  (let ((decl (mapcan (lambda (x) (use-declaration x decls)) var))
-        (val-sym (gensym "VAL")))
+  (let ((val-sym (gensym "VAL")))
     `(let ((,val-sym ,val))
        (let (,@(mapcar (lambda (var) `(,var ,val-sym)) var))
-         ,@(when decl `((declare ,@decl)))
+         ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls)) var))
+                     `((declare ,@decl)))
          ,@body))))
     
 (define-binder (:complex (var list) val decls body)
