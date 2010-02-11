@@ -246,6 +246,29 @@
                      (declare (type fixnum y))
                      :body)))))))
 
+(deftest let*-slotval-decl-multiple
+  (let ((exp (macroexpand-1 `(let* (((:mval (:slotval (xxx x) y)
+                                            (:slotval (yy y) z)) 
+                                     (values (make-xxx :x 10 :y 20)
+                                             (make-xxx :y 30 :z 40))))
+                               (declare (fixnum xxx y yy z))
+                               :body))))
+    (destructuring-bind (list1 list2 val1 val2) (find-gensyms exp)
+      (equalp exp
+              `(multiple-value-bind (,list1 ,list2)
+                   (values (make-xxx :x 10 :y 20) (make-xxx :y 30 :z 40))
+                 (let ((,val1 ,list2))
+                   (let ((yy (slot-value ,val1 'y)))
+                     (declare (type fixnum yy))
+                     (let ((z (slot-value ,val1 'z)))
+                       (declare (type fixnum z))
+                       (let ((,val2 ,list1))
+                         (let ((xxx (slot-value ,val2 'x)))
+                           (declare (type fixnum xxx))
+                           (let ((y (slot-value ,val2 'y)))
+                             (declare (type fixnum y))
+                             :body)))))))))))
+
 (deftest let*-slot-decl
   (let ((exp (macroexpand-1 `(let* (((:slot (xxx x) y) (make-xxx :x 10 :y 20)))
                                (declare (fixnum xxx y))

@@ -18,11 +18,11 @@
         (marker nil))
     (labels ((do-elem (x)
                (cond ((and nest-deeper (consp x))
-                      (multiple-value-setq (nest-deeper x)
-                        (funcall cons-fn x))
-                      (if nest-deeper
-                          (map-lambda-list x leaf-fn cons-fn)
-                          (leaf x)))
+                      (multiple-value-bind (nest-deeper x)
+                          (funcall cons-fn x)
+                        (if nest-deeper
+                            (map-lambda-list x leaf-fn cons-fn)
+                            (leaf x))))
                      (t (leaf x))))
              (leaf (x)
                (cond ((member x *lambda-list-markers*)
