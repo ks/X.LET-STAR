@@ -71,8 +71,9 @@
 
 (defun ignore-varname-p (symbol)
   (if (and (null (symbol-package symbol))
-           (string= (subseq (symbol-name symbol) 0 6)
-                    "IGNORE"))
+           (let ((name (symbol-name symbol)))
+             (and (>= (length name) 6)
+                  (string= (subseq name 0 6) "IGNORE"))))
       t
       nil))
 
