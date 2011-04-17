@@ -155,6 +155,33 @@
       `(let ((,val-sym ,val))
          ,(rec var)))))
 
+(define-binder (:accessor (var list) val decls body)
+  `(with-accessors ,var ,val
+     ,@(when-let (decl (mapcan (lambda (x) (use-declaration x decls))
+                               (lambda-list-vars var)))
+                 `((declare ,@decl)))
+     ,@body))
+     
+(define-binder (:accessorval (var list) val decls body)
+  (let ((val-sym (gensym "VAL")))
+    (labels ((rec (vars)
+               (destructuring-bind (var . rest) vars
+                 (multiple-value-bind (var-name accessor-name)
+                     (cond ((atom var)
+                            (values var var))
+                           ((and (consp var) (eql (length var) 2))
+                            (values (car var) (cadr var)))
+                           (t
+                            (error "~A is invalid, expected VAR-NAME or (VAR-NAME ACCESSOR-NAME)" var)))
+                   `(let ((,var-name (,accessor-name ,val-sym)))
+                      ,@(when-let (decl (use-declaration var-name decls))
+                                  `((declare ,@decl)))
+                      ,@(if rest
+                            (list (rec rest))
+                            body))))))
+      `(let ((,val-sym ,val))
+         ,(rec var)))))
+
 (define-binder (:all (var list) val decls body)
   (let ((val-sym (gensym "VAL")))
     `(let ((,val-sym ,val))

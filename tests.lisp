@@ -279,6 +279,19 @@
                (declare (type fixnum xxx) (type fixnum y))
                :body))))
 
+(deftest let*-accessorval-decl
+  (let ((exp (macroexpand-1 `(let* (((:accessorval (x xxx-x) (y xxx-y)) (make-xxx :x 10 :y 20)))
+                               (declare (fixnum x y))
+                               :body))))
+    (destructuring-bind (val) (find-gensyms exp)
+      (equalp exp
+              `(let ((,val (make-xxx :x 10 :y 20)))
+                 (let ((x (xxx-x ,val)))
+                   (declare (type fixnum x))
+                   (let ((y (xxx-y ,val)))
+                     (declare (type fixnum y))
+                     :body)))))))
+
 (deftest let*-all-decl
   (let ((exp (macroexpand-1 `(let* (((:all x y z) 0))
                                (declare (fixnum x y z))

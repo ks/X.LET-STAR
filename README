@@ -2,14 +2,16 @@ X.LET-STAR is a binding/destructuring utility for Common Lisp which currently co
 
 a) let* 
 b) destructuring-bind
-c) multiple-value-bind
-d) with-slots
-e) "projection" of slot values of structure/object to normal values,
+c) :mval - multiple-value-bind
+d) :slot - with-slots
+e) :slotval - "projection" of slot values of structure/object to local variables,
    avoiding slot lookup every time the slot value is used in the scope
    of let*
-f) binding of a group of variables to one initialization value
-g) destructuring of arrays
-h) destructuring of complex numbers 
+f) :accessor - with-accessors
+g) :accessorval - "projection" of values retrieved by accessor function to local variables (same concept as e) )
+h) :all - binding of a group of variables to one initialization value
+i) destructuring of arrays
+j) :complex - destructuring of complex numbers 
 
 Destructuring of lists, arrays and multiple values can contain
 nested other binders, and also recognizes "don't care" variable _.
