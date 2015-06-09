@@ -11,25 +11,27 @@
     
 (defmacro deftest (name &body body)
   `(let ((elem (cons ',name
-                     (lambda ()
+                     (lambda (&optional chatty?)
                        (multiple-value-bind (result error)
                            (ignore-errors (progn ,@body))
                          (let ((passed (and result (not error))))
-                           (format t "test ~A ~:[FAILED~;ok~].~%" ',name passed)
+                           (when (or (not passed) chatty?)
+                             (format t "test ~A ~:[FAILED~;ok~].~%" ',name passed))
                            passed))))))
      (let ((pos (member ',name *tests* :key #'car)))
        (if pos
            (rplaca pos elem)
            (push elem *tests*)))))
 
-(defun run-tests ()
+(defun run-tests (&optional chatty?)
   (let ((passed 0)
         (failed 0))
     (loop :for (name . test) :in (reverse *tests*)
-       :do (if (funcall test)
+       :do (if (funcall test chatty?)
                (incf passed)
                (incf failed)))
-    (format t "/// X.LET-STAR testing done. ~A passed, ~A failed." passed failed)
+    (when chatty?
+      (format t "/// X.LET-STAR testing done. ~A passed, ~A failed." passed failed))
     (zerop failed)))
 
 (defun flatten-filter (fn tree)
